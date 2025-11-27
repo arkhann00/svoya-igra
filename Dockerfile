@@ -1,33 +1,16 @@
-# Этап сборки фронтенда
-FROM node:20-alpine AS build
+FROM node:20-alpine
 
-# Рабочая директория внутри контейнера
 WORKDIR /app
 
-# Копируем package.json и package-lock.json, если он есть
+# Сначала только зависимости
 COPY package*.json ./
-
-# Устанавливаем зависимости
 RUN npm install
 
-# Копируем весь код проекта
+# Затем копируем весь проект
 COPY . .
 
-# Сборка Vite-приложения в прод-режиме
-RUN npm run build
+# Vite по умолчанию слушает 5173 порт
+EXPOSE 5173
 
-# Этап запуска (Nginx отдаёт статику)
-FROM nginx:1.27-alpine
-
-# Удаляем дефолтную конфигурацию и добавляем свою
-RUN rm /etc/nginx/conf.d/default.conf
-
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-
-# Копируем собранный фронт в папку, откуда Nginx отдаёт файлы
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Порт внутри контейнера
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+# Запускаем dev-сервер, доступный снаружи
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
