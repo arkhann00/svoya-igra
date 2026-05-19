@@ -268,12 +268,228 @@ const GAME_DATA = [
   },
 ];
 
+const CSV_HEADER_ALIASES = {
+  category: ["category", "theme", "topic", "категория", "тема"],
+  price: ["price", "points", "стоимость", "цена", "очки"],
+  question: ["question", "вопрос"],
+  options: ["options", "варианты", "answers_options"],
+  answer: ["answer", "правильный_ответ", "ответ"],
+  color: ["color", "цвет"],
+};
+
+const DEFAULT_TEAM_COUNT = 2;
+const DEFAULT_TEAM_SCORE = 0;
+const DEFAULT_SCORE_STEP = 100;
+
+const cloneGameData = (source) =>
+  source.map((category) => ({
+    ...category,
+    questions: category.questions.map((question) => ({
+      ...question,
+      options: question.options ? [...question.options] : null,
+    })),
+  }));
+
+const createTeams = (count, initialScore) =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `team-${index + 1}`,
+    name: `Команда ${index + 1}`,
+    score: initialScore,
+  }));
+
+const normalizeHeader = (value) => value.trim().toLowerCase();
+
+const findColumnIndex = (headers, aliases) => {
+  const normalizedHeaders = headers.map(normalizeHeader);
+  const aliasesSet = new Set(aliases.map(normalizeHeader));
+  return normalizedHeaders.findIndex((header) => aliasesSet.has(header));
+};
+
+const detectCsvDelimiter = (csvText) => {
+  const firstLine = csvText.split(/\r?\n/, 1)[0] ?? "";
+  const commas = (firstLine.match(/,/g) ?? []).length;
+  const semicolons = (firstLine.match(/;/g) ?? []).length;
+  return semicolons > commas ? ";" : ",";
+};
+
+const parseCsvRows = (csvText, delimiter) => {
+  const rows = [];
+  let currentRow = [];
+  let currentCell = "";
+  let insideQuotes = false;
+
+  for (let index = 0; index < csvText.length; index += 1) {
+    const char = csvText[index];
+
+    if (char === '"') {
+      const nextChar = csvText[index + 1];
+      if (insideQuotes && nextChar === '"') {
+        currentCell += '"';
+        index += 1;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !insideQuotes) {
+      currentRow.push(currentCell);
+      currentCell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !insideQuotes) {
+      if (char === "\r" && csvText[index + 1] === "\n") {
+        index += 1;
+      }
+      currentRow.push(currentCell);
+      currentCell = "";
+      if (currentRow.some((cell) => cell.trim().length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      continue;
+    }
+
+    currentCell += char;
+  }
+
+  if (currentCell.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentCell);
+    if (currentRow.some((cell) => cell.trim().length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+};
+
+const parseScoreValue = (value, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.trunc(parsed);
+};
+
+const buildGameDataFromCsv = (csvText) => {
+  const delimiter = detectCsvDelimiter(csvText);
+  const rows = parseCsvRows(csvText, delimiter);
+
+  if (rows.length < 2) {
+    throw new Error("CSV пустой или не содержит вопросов.");
+  }
+
+  const headers = rows[0];
+  const categoryIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.category);
+  const priceIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.price);
+  const questionIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.question);
+  const answerIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.answer);
+  const optionsIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.options);
+  const colorIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.color);
+
+  if (categoryIndex === -1 || priceIndex === -1 || questionIndex === -1 || answerIndex === -1) {
+    throw new Error(
+      "Нужны столбцы: category, price, question, answer (options и color - опционально)."
+    );
+  }
+
+  const categories = new Map();
+  let categoryCounter = 0;
+  let questionCounter = 0;
+
+  for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex];
+
+    if (!row || row.every((cell) => !cell || cell.trim() === "")) {
+      continue;
+    }
+
+    const categoryTitle = (row[categoryIndex] ?? "").trim();
+    const questionText = (row[questionIndex] ?? "").trim();
+    const answerText = (row[answerIndex] ?? "").trim();
+    const rawPrice = (row[priceIndex] ?? "").trim().replace(",", ".");
+    const parsedPrice = Number(rawPrice);
+    const lineNumber = rowIndex + 1;
+
+    if (!categoryTitle || !questionText || !answerText || !Number.isFinite(parsedPrice)) {
+      throw new Error(
+        `Ошибка в строке ${lineNumber}: проверьте поля category, price, question и answer.`
+      );
+    }
+
+    if (!categories.has(categoryTitle)) {
+      categoryCounter += 1;
+      categories.set(categoryTitle, {
+        id: `cat-imported-${categoryCounter}`,
+        title: categoryTitle,
+        color: "#1e3a8a",
+        questions: [],
+      });
+    }
+
+    const category = categories.get(categoryTitle);
+    const colorValue = colorIndex === -1 ? "" : (row[colorIndex] ?? "").trim();
+    if (colorValue) {
+      category.color = colorValue;
+    }
+
+    const optionsRaw = optionsIndex === -1 ? "" : row[optionsIndex] ?? "";
+    const options = optionsRaw
+      .split("|")
+      .map((option) => option.trim())
+      .filter(Boolean);
+
+    questionCounter += 1;
+    category.questions.push({
+      id: `imported-q-${questionCounter}`,
+      price: Math.trunc(parsedPrice),
+      text: questionText,
+      options: options.length > 0 ? options : null,
+      answer: answerText,
+    });
+  }
+
+  const importedData = Array.from(categories.values())
+    .map((category) => ({
+      ...category,
+      questions: category.questions.sort((left, right) => left.price - right.price),
+    }))
+    .filter((category) => category.questions.length > 0);
+
+  if (importedData.length === 0) {
+    throw new Error("CSV не содержит валидных вопросов для игры.");
+  }
+
+  return importedData;
+};
+
 function App() {
+  const [gameData, setGameData] = useState(() => cloneGameData(GAME_DATA));
   const [activeQuestion, setActiveQuestion] = useState(null);
   const [usedQuestionIds, setUsedQuestionIds] = useState([]);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [teamCountInput, setTeamCountInput] = useState(DEFAULT_TEAM_COUNT);
+  const [teamScoreInput, setTeamScoreInput] = useState(DEFAULT_TEAM_SCORE);
+  const [teams, setTeams] = useState(() =>
+    createTeams(DEFAULT_TEAM_COUNT, DEFAULT_TEAM_SCORE)
+  );
+  const [importStatus, setImportStatus] = useState(null);
+
+  const maxQuestionCount = Math.max(
+    1,
+    ...gameData.map((category) => category.questions.length)
+  );
+  const totalQuestions = gameData.reduce(
+    (total, category) => total + category.questions.length,
+    0
+  );
+  const scoreStep = activeQuestion?.price ?? DEFAULT_SCORE_STEP;
 
   const handleQuestionClick = (question, category) => {
+    if (!question) {
+      return;
+    }
     if (usedQuestionIds.includes(question.id)) {
       return;
     }
@@ -299,6 +515,96 @@ function App() {
 
   const isUsed = (id) => usedQuestionIds.includes(id);
 
+  const handleApplyTeamsSettings = (event) => {
+    event.preventDefault();
+
+    const nextCount = Math.max(
+      1,
+      Math.min(12, parseScoreValue(teamCountInput, DEFAULT_TEAM_COUNT))
+    );
+    const nextStartScore = parseScoreValue(teamScoreInput, DEFAULT_TEAM_SCORE);
+
+    setTeamCountInput(nextCount);
+    setTeamScoreInput(nextStartScore);
+    setTeams((prevTeams) =>
+      Array.from({ length: nextCount }, (_, index) => ({
+        id: prevTeams[index]?.id ?? `team-${index + 1}`,
+        name: prevTeams[index]?.name ?? `Команда ${index + 1}`,
+        score: prevTeams[index]?.score ?? nextStartScore,
+      }))
+    );
+  };
+
+  const handleResetTeamScores = () => {
+    const resetValue = parseScoreValue(teamScoreInput, DEFAULT_TEAM_SCORE);
+    setTeams((prevTeams) =>
+      prevTeams.map((team) => ({ ...team, score: resetValue }))
+    );
+  };
+
+  const handleTeamScoreChange = (teamId, delta) => {
+    setTeams((prevTeams) =>
+      prevTeams.map((team) =>
+        team.id === teamId ? { ...team, score: team.score + delta } : team
+      )
+    );
+  };
+
+  const handleSetExactTeamScore = (teamId, nextScore) => {
+    const parsedScore = parseScoreValue(nextScore, 0);
+    setTeams((prevTeams) =>
+      prevTeams.map((team) =>
+        team.id === teamId ? { ...team, score: parsedScore } : team
+      )
+    );
+  };
+
+  const handleResetBoardProgress = () => {
+    setUsedQuestionIds([]);
+    setActiveQuestion(null);
+    setShowAnswer(false);
+  };
+
+  const handleResetDefaultQuestions = () => {
+    setGameData(cloneGameData(GAME_DATA));
+    handleResetBoardProgress();
+    setImportStatus({
+      type: "success",
+      text: "Загружен стандартный набор тем и вопросов.",
+    });
+  };
+
+  const handleCsvImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const csvText = await file.text();
+      const importedGameData = buildGameDataFromCsv(csvText);
+      const importedQuestionsCount = importedGameData.reduce(
+        (total, category) => total + category.questions.length,
+        0
+      );
+
+      setGameData(importedGameData);
+      handleResetBoardProgress();
+      setImportStatus({
+        type: "success",
+        text: `Импорт завершён: ${importedGameData.length} тем и ${importedQuestionsCount} вопросов.`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Не удалось обработать CSV. Проверьте формат файла.";
+      setImportStatus({ type: "error", text: message });
+    } finally {
+      event.target.value = "";
+    }
+  };
+
   return (
     <div className="app-root">
       <div className="background-gradient"></div>
@@ -306,31 +612,163 @@ function App() {
       <header className="header">
         <div className="header-title-block">
           <h1 className="header-title">СВОЯ ИГРА</h1>
-          <p className="header-subtitle">
-            Тематический выпуск: День Благодарения и благодарность
-          </p>
+          <p className="header-subtitle">Локальная игра с настройкой команд и CSV-импортом</p>
         </div>
         <div className="header-info">
-          {/* <span className="header-tag">Статическая игра</span>
-          <span className="header-tag">Без подсчёта баллов и таймера</span> */}
+          <span className="header-tag">Тем: {gameData.length}</span>
+          <span className="header-tag">Вопросов: {totalQuestions}</span>
         </div>
       </header>
 
+      <section className="control-panels">
+        <article className="control-card">
+          <h2 className="control-card-title">Команды и очки</h2>
+          <form className="team-settings-form" onSubmit={handleApplyTeamsSettings}>
+            <label className="field-group">
+              <span className="field-label">Количество команд</span>
+              <input
+                className="field-input"
+                type="number"
+                min={1}
+                max={12}
+                value={teamCountInput}
+                onChange={(event) => setTeamCountInput(event.target.value)}
+              />
+            </label>
+
+            <label className="field-group">
+              <span className="field-label">Стартовые очки</span>
+              <input
+                className="field-input"
+                type="number"
+                value={teamScoreInput}
+                onChange={(event) => setTeamScoreInput(event.target.value)}
+              />
+            </label>
+
+            <div className="control-actions">
+              <button type="submit" className="control-button">
+                Применить
+              </button>
+              <button
+                type="button"
+                className="control-button control-button-secondary"
+                onClick={handleResetTeamScores}
+              >
+                Сбросить очки
+              </button>
+            </div>
+          </form>
+
+          <div className="teams-grid">
+            {teams.map((team) => (
+              <div className="team-card" key={team.id}>
+                <div className="team-card-name">{team.name}</div>
+                <input
+                  type="number"
+                  className="team-card-score"
+                  value={team.score}
+                  onChange={(event) =>
+                    handleSetExactTeamScore(team.id, event.target.value)
+                  }
+                />
+                <div className="team-card-controls">
+                  <button
+                    type="button"
+                    className="team-card-button"
+                    onClick={() => handleTeamScoreChange(team.id, scoreStep)}
+                  >
+                    +{scoreStep}
+                  </button>
+                  <button
+                    type="button"
+                    className="team-card-button team-card-button-negative"
+                    onClick={() => handleTeamScoreChange(team.id, -scoreStep)}
+                  >
+                    -{scoreStep}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="control-card">
+          <h2 className="control-card-title">Импорт тем и вопросов</h2>
+          <p className="csv-note">
+            CSV: <strong>category,price,question,options,answer[,color]</strong>.
+            <br />
+            В поле <strong>options</strong> перечисляйте варианты через символ{" "}
+            <strong>|</strong>.
+          </p>
+          <input
+            className="csv-file-input"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleCsvImport}
+          />
+          <div className="control-actions">
+            <button
+              type="button"
+              className="control-button control-button-secondary"
+              onClick={handleResetDefaultQuestions}
+            >
+              Вернуть стандартные вопросы
+            </button>
+            <button
+              type="button"
+              className="control-button control-button-secondary"
+              onClick={handleResetBoardProgress}
+            >
+              Сбросить прогресс поля
+            </button>
+          </div>
+          {importStatus && (
+            <p
+              className={`import-status ${
+                importStatus.type === "error"
+                  ? "import-status-error"
+                  : "import-status-success"
+              }`}
+            >
+              {importStatus.text}
+            </p>
+          )}
+        </article>
+      </section>
+
       <main className="board-wrapper">
         <div className="board">
-          {GAME_DATA.map((category) => (
+          {gameData.length === 0 && (
+            <p className="empty-board-text">Нет тем для показа. Импортируйте CSV.</p>
+          )}
+
+          {gameData.map((category) => (
             <div
               className="board-row"
               key={category.id}
               style={{
-                gridTemplateColumns: `2.2fr repeat(${category.questions.length}, 1fr)`,
+                gridTemplateColumns: `2.2fr repeat(${maxQuestionCount}, 1fr)`,
               }}
             >
               <div className="category-cell">
                 <span className="category-cell-text">{category.title}</span>
               </div>
-              {category.questions.map((question) => {
+
+              {Array.from({ length: maxQuestionCount }, (_, index) => {
+                const question = category.questions[index];
+
+                if (!question) {
+                  return (
+                    <div
+                      key={`${category.id}-empty-${index + 1}`}
+                      className="price-cell price-cell-empty"
+                    />
+                  );
+                }
+
                 const used = isUsed(question.id);
+
                 return (
                   <button
                     key={question.id}
@@ -348,13 +786,6 @@ function App() {
           ))}
         </div>
       </main>
-
-      {/* <footer className="footer">
-        <p className="footer-text">
-          Подсказка ведущему: после закрытия карточки вопрос становится
-          недоступен и «гаснет» на игровом поле.
-        </p>
-      </footer> */}
 
       {activeQuestion && (
         <div className="overlay">
