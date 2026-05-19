@@ -1,16 +1,50 @@
-# React + Vite
+# Svoya Igra
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Локальная игра на React + Vite.
 
-Currently, two official plugins are available:
+## Docker (production)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Запускать из корня проекта:
 
-## React Compiler
+```bash
+docker compose up -d --build
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Сайт будет доступен на [http://localhost:8080](http://localhost:8080).
 
-## Expanding the ESLint configuration
+Остановить:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+docker compose down
+```
+
+## Docker (development)
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+```
+
+Dev-сервер будет доступен на [http://localhost:5173](http://localhost:5173).
+
+Остановить:
+
+```bash
+docker compose -f docker-compose.dev.yml down
+```
+
+## Если ошибка: no configuration file provided
+
+Эта ошибка появляется, если команда запускается не из корня проекта.
+
+Используйте один из вариантов:
+
+```bash
+cd /Users/arsenhacatran/Documents/Projects/svoya-igra
+docker compose up -d --build
+```
+
+или явно укажите файл:
+
+```bash
+docker compose -f /Users/arsenhacatran/Documents/Projects/svoya-igra/docker-compose.yml up -d --build
+```
