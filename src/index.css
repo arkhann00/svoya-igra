@@ -106,9 +106,136 @@ body {
   color: #e5e7eb;
 }
 
-.control-panels {
+.settings-toggle-button {
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  background: #1d4ed8;
+  color: #f9fafb;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.settings-toggle-button:hover {
+  filter: brightness(1.08);
+}
+
+.scoreboard {
+  border-radius: 12px;
+  background: rgba(3, 15, 80, 0.95);
+  border: 2px solid #041557;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.8);
+  padding: 10px 12px;
+}
+
+.scoreboard-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.scoreboard-title {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #dbeafe;
+}
+
+.scoreboard-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #bfdbfe;
+}
+
+.scoreboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.scoreboard-team {
+  border: 1px solid #1d4ed8;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  color: inherit;
+  cursor: pointer;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.scoreboard-team-active {
+  border-color: #facc15;
+  box-shadow: inset 0 0 0 1px #facc15;
+}
+
+.scoreboard-team-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #dbeafe;
+}
+
+.scoreboard-team-score {
+  font-size: 24px;
+  font-weight: 900;
+  color: #ffe800;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.settings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.settings-modal {
+  position: relative;
+  width: min(900px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 12px;
+  background: #071049;
+  border: 2px solid #1d4ed8;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.9);
+  padding: 12px;
+}
+
+.settings-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.settings-modal-title {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #dbeafe;
+}
+
+.settings-modal-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
 }
 
@@ -178,60 +305,6 @@ body {
 
 .control-button-secondary {
   background: rgba(15, 23, 42, 0.95);
-}
-
-.teams-grid {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-}
-
-.team-card {
-  border: 1px solid #1d4ed8;
-  border-radius: 10px;
-  padding: 8px;
-  background: rgba(15, 23, 42, 0.85);
-  display: grid;
-  gap: 8px;
-}
-
-.team-card-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #dbeafe;
-}
-
-.team-card-score {
-  border: 1px solid #1d4ed8;
-  border-radius: 8px;
-  background: #020617;
-  color: #f9fafb;
-  padding: 7px;
-  font-size: 20px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.team-card-controls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.team-card-button {
-  border: 1px solid #93c5fd;
-  border-radius: 8px;
-  background: #1d4ed8;
-  color: #f9fafb;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 6px 8px;
-  cursor: pointer;
-}
-
-.team-card-button-negative {
-  background: #7f1d1d;
-  border-color: #fca5a5;
 }
 
 .csv-note {
@@ -584,6 +657,51 @@ body {
   justify-content: flex-end;
 }
 
+.question-card-footer-judge {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.judge-team-label {
+  font-size: 13px;
+  color: #dbeafe;
+}
+
+.judge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.judge-button {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #f9fafb;
+}
+
+.judge-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.judge-button-correct {
+  background: #166534;
+  border-color: #86efac;
+}
+
+.judge-button-wrong {
+  background: #991b1b;
+  border-color: #fca5a5;
+}
+
 .close-card-button {
   border-radius: 999px;
   border: 2px solid #facc15;
@@ -627,7 +745,7 @@ body {
 /* Адаптив */
 
 @media (max-width: 900px) {
-  .control-panels {
+  .settings-modal-body {
     grid-template-columns: 1fr;
   }
 
@@ -661,12 +779,16 @@ body {
     padding: 10px;
   }
 
+  .scoreboard {
+    padding: 8px;
+  }
+
   .control-card-title {
     font-size: 14px;
   }
 
-  .team-card-score {
-    font-size: 18px;
+  .scoreboard-team-score {
+    font-size: 20px;
   }
 
   .header {

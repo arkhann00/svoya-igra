@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const GAME_DATA = [
   {
@@ -279,7 +279,6 @@ const CSV_HEADER_ALIASES = {
 
 const DEFAULT_TEAM_COUNT = 2;
 const DEFAULT_TEAM_SCORE = 0;
-const DEFAULT_SCORE_STEP = 100;
 
 const cloneGameData = (source) =>
   source.map((category) => ({
@@ -475,6 +474,19 @@ function App() {
     createTeams(DEFAULT_TEAM_COUNT, DEFAULT_TEAM_SCORE)
   );
   const [importStatus, setImportStatus] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState("team-1");
+
+  useEffect(() => {
+    if (teams.length === 0) {
+      setSelectedTeamId(null);
+      return;
+    }
+
+    if (!teams.some((team) => team.id === selectedTeamId)) {
+      setSelectedTeamId(teams[0].id);
+    }
+  }, [teams, selectedTeamId]);
 
   const maxQuestionCount = Math.max(
     1,
@@ -484,7 +496,7 @@ function App() {
     (total, category) => total + category.questions.length,
     0
   );
-  const scoreStep = activeQuestion?.price ?? DEFAULT_SCORE_STEP;
+  const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? null;
 
   const handleQuestionClick = (question, category) => {
     if (!question) {
@@ -501,9 +513,15 @@ function App() {
     setShowAnswer(false);
   };
 
+  const markQuestionAsUsed = (questionId) => {
+    setUsedQuestionIds((prevIds) =>
+      prevIds.includes(questionId) ? prevIds : [...prevIds, questionId]
+    );
+  };
+
   const handleCloseCard = () => {
-    if (activeQuestion && !usedQuestionIds.includes(activeQuestion.id)) {
-      setUsedQuestionIds((prev) => [...prev, activeQuestion.id]);
+    if (activeQuestion) {
+      markQuestionAsUsed(activeQuestion.id);
     }
     setActiveQuestion(null);
     setShowAnswer(false);
@@ -542,23 +560,6 @@ function App() {
     );
   };
 
-  const handleTeamScoreChange = (teamId, delta) => {
-    setTeams((prevTeams) =>
-      prevTeams.map((team) =>
-        team.id === teamId ? { ...team, score: team.score + delta } : team
-      )
-    );
-  };
-
-  const handleSetExactTeamScore = (teamId, nextScore) => {
-    const parsedScore = parseScoreValue(nextScore, 0);
-    setTeams((prevTeams) =>
-      prevTeams.map((team) =>
-        team.id === teamId ? { ...team, score: parsedScore } : team
-      )
-    );
-  };
-
   const handleResetBoardProgress = () => {
     setUsedQuestionIds([]);
     setActiveQuestion(null);
@@ -572,6 +573,26 @@ function App() {
       type: "success",
       text: "Загружен стандартный набор тем и вопросов.",
     });
+  };
+
+  const handleJudgeAnswer = (isCorrect) => {
+    if (!activeQuestion || !selectedTeam) {
+      return;
+    }
+
+    const scoreDelta = isCorrect ? activeQuestion.price : -activeQuestion.price;
+
+    setTeams((prevTeams) =>
+      prevTeams.map((team) =>
+        team.id === selectedTeam.id
+          ? { ...team, score: team.score + scoreDelta }
+          : team
+      )
+    );
+
+    markQuestionAsUsed(activeQuestion.id);
+    setActiveQuestion(null);
+    setShowAnswer(false);
   };
 
   const handleCsvImport = async (event) => {
@@ -617,124 +638,39 @@ function App() {
         <div className="header-info">
           <span className="header-tag">Тем: {gameData.length}</span>
           <span className="header-tag">Вопросов: {totalQuestions}</span>
+          <button
+            className="settings-toggle-button"
+            type="button"
+            onClick={() => setShowSettings(true)}
+          >
+            Настройки
+          </button>
         </div>
       </header>
 
-      <section className="control-panels">
-        <article className="control-card">
-          <h2 className="control-card-title">Команды и очки</h2>
-          <form className="team-settings-form" onSubmit={handleApplyTeamsSettings}>
-            <label className="field-group">
-              <span className="field-label">Количество команд</span>
-              <input
-                className="field-input"
-                type="number"
-                min={1}
-                max={12}
-                value={teamCountInput}
-                onChange={(event) => setTeamCountInput(event.target.value)}
-              />
-            </label>
-
-            <label className="field-group">
-              <span className="field-label">Стартовые очки</span>
-              <input
-                className="field-input"
-                type="number"
-                value={teamScoreInput}
-                onChange={(event) => setTeamScoreInput(event.target.value)}
-              />
-            </label>
-
-            <div className="control-actions">
-              <button type="submit" className="control-button">
-                Применить
-              </button>
-              <button
-                type="button"
-                className="control-button control-button-secondary"
-                onClick={handleResetTeamScores}
-              >
-                Сбросить очки
-              </button>
-            </div>
-          </form>
-
-          <div className="teams-grid">
-            {teams.map((team) => (
-              <div className="team-card" key={team.id}>
-                <div className="team-card-name">{team.name}</div>
-                <input
-                  type="number"
-                  className="team-card-score"
-                  value={team.score}
-                  onChange={(event) =>
-                    handleSetExactTeamScore(team.id, event.target.value)
-                  }
-                />
-                <div className="team-card-controls">
-                  <button
-                    type="button"
-                    className="team-card-button"
-                    onClick={() => handleTeamScoreChange(team.id, scoreStep)}
-                  >
-                    +{scoreStep}
-                  </button>
-                  <button
-                    type="button"
-                    className="team-card-button team-card-button-negative"
-                    onClick={() => handleTeamScoreChange(team.id, -scoreStep)}
-                  >
-                    -{scoreStep}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="control-card">
-          <h2 className="control-card-title">Импорт тем и вопросов</h2>
-          <p className="csv-note">
-            CSV: <strong>category,price,question,options,answer[,color]</strong>.
-            <br />
-            В поле <strong>options</strong> перечисляйте варианты через символ{" "}
-            <strong>|</strong>.
+      <section className="scoreboard">
+        <div className="scoreboard-header">
+          <h2 className="scoreboard-title">Команды</h2>
+          <p className="scoreboard-hint">
+            Выберите активную команду. Ей начисляются или снимаются очки в карточке вопроса.
           </p>
-          <input
-            className="csv-file-input"
-            type="file"
-            accept=".csv,text/csv"
-            onChange={handleCsvImport}
-          />
-          <div className="control-actions">
+        </div>
+
+        <div className="scoreboard-grid">
+          {teams.map((team) => (
             <button
               type="button"
-              className="control-button control-button-secondary"
-              onClick={handleResetDefaultQuestions}
-            >
-              Вернуть стандартные вопросы
-            </button>
-            <button
-              type="button"
-              className="control-button control-button-secondary"
-              onClick={handleResetBoardProgress}
-            >
-              Сбросить прогресс поля
-            </button>
-          </div>
-          {importStatus && (
-            <p
-              className={`import-status ${
-                importStatus.type === "error"
-                  ? "import-status-error"
-                  : "import-status-success"
+              key={team.id}
+              className={`scoreboard-team ${
+                team.id === selectedTeamId ? "scoreboard-team-active" : ""
               }`}
+              onClick={() => setSelectedTeamId(team.id)}
             >
-              {importStatus.text}
-            </p>
-          )}
-        </article>
+              <span className="scoreboard-team-name">{team.name}</span>
+              <span className="scoreboard-team-score">{team.score}</span>
+            </button>
+          ))}
+        </div>
       </section>
 
       <main className="board-wrapper">
@@ -787,6 +723,112 @@ function App() {
         </div>
       </main>
 
+      {showSettings && (
+        <div className="settings-overlay">
+          <div
+            className="settings-backdrop"
+            onClick={() => setShowSettings(false)}
+          ></div>
+          <div className="settings-modal">
+            <div className="settings-modal-header">
+              <h2 className="settings-modal-title">Настройки игры</h2>
+              <button
+                className="question-card-close"
+                type="button"
+                onClick={() => setShowSettings(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="settings-modal-body">
+              <article className="control-card">
+                <h3 className="control-card-title">Команды и очки</h3>
+                <form className="team-settings-form" onSubmit={handleApplyTeamsSettings}>
+                  <label className="field-group">
+                    <span className="field-label">Количество команд</span>
+                    <input
+                      className="field-input"
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={teamCountInput}
+                      onChange={(event) => setTeamCountInput(event.target.value)}
+                    />
+                  </label>
+
+                  <label className="field-group">
+                    <span className="field-label">Стартовые очки</span>
+                    <input
+                      className="field-input"
+                      type="number"
+                      value={teamScoreInput}
+                      onChange={(event) => setTeamScoreInput(event.target.value)}
+                    />
+                  </label>
+
+                  <div className="control-actions">
+                    <button type="submit" className="control-button">
+                      Применить
+                    </button>
+                    <button
+                      type="button"
+                      className="control-button control-button-secondary"
+                      onClick={handleResetTeamScores}
+                    >
+                      Сбросить очки
+                    </button>
+                  </div>
+                </form>
+              </article>
+
+              <article className="control-card">
+                <h3 className="control-card-title">Импорт тем и вопросов</h3>
+                <p className="csv-note">
+                  CSV: <strong>category,price,question,options,answer[,color]</strong>.
+                  <br />
+                  В поле <strong>options</strong> перечисляйте варианты через символ{" "}
+                  <strong>|</strong>.
+                </p>
+                <input
+                  className="csv-file-input"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleCsvImport}
+                />
+                <div className="control-actions">
+                  <button
+                    type="button"
+                    className="control-button control-button-secondary"
+                    onClick={handleResetDefaultQuestions}
+                  >
+                    Вернуть стандартные вопросы
+                  </button>
+                  <button
+                    type="button"
+                    className="control-button control-button-secondary"
+                    onClick={handleResetBoardProgress}
+                  >
+                    Сбросить прогресс поля
+                  </button>
+                </div>
+                {importStatus && (
+                  <p
+                    className={`import-status ${
+                      importStatus.type === "error"
+                        ? "import-status-error"
+                        : "import-status-success"
+                    }`}
+                  >
+                    {importStatus.text}
+                  </p>
+                )}
+              </article>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeQuestion && (
         <div className="overlay">
           <div className="overlay-backdrop" onClick={handleCloseCard}></div>
@@ -832,10 +874,32 @@ function App() {
               </div>
             </div>
 
-            <div className="question-card-footer">
-              <button className="close-card-button" onClick={handleCloseCard}>
-                ЗАКРЫТЬ КАРТОЧКУ
-              </button>
+            <div className="question-card-footer question-card-footer-judge">
+              <div className="judge-team-label">
+                Активная команда:{" "}
+                <strong>{selectedTeam ? selectedTeam.name : "не выбрана"}</strong>
+              </div>
+              <div className="judge-actions">
+                <button
+                  type="button"
+                  className="judge-button judge-button-correct"
+                  onClick={() => handleJudgeAnswer(true)}
+                  disabled={!selectedTeam}
+                >
+                  ПРАВИЛЬНО +{activeQuestion.price}
+                </button>
+                <button
+                  type="button"
+                  className="judge-button judge-button-wrong"
+                  onClick={() => handleJudgeAnswer(false)}
+                  disabled={!selectedTeam}
+                >
+                  НЕПРАВИЛЬНО -{activeQuestion.price}
+                </button>
+                <button className="close-card-button" onClick={handleCloseCard}>
+                  ЗАКРЫТЬ БЕЗ НАЧИСЛЕНИЯ
+                </button>
+              </div>
             </div>
           </div>
         </div>
