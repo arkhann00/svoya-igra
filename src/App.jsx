@@ -275,18 +275,217 @@ const CSV_HEADER_ALIASES = {
   options: ["options", "варианты", "answers_options"],
   answer: ["answer", "правильный_ответ", "ответ"],
   color: ["color", "цвет"],
+  type: ["type", "тип", "question_type"],
+  media: [
+    "media",
+    "media_url",
+    "медиа",
+    "video",
+    "video_url",
+    "видео",
+    "image",
+    "image_url",
+    "фото",
+  ],
 };
+
+const QUESTION_TYPE = {
+  CHOICE: "choice",
+  OPEN: "open",
+  VIDEO: "video",
+  IMAGE: "image",
+};
+
+const QUESTION_TYPE_OPTIONS = [
+  { value: QUESTION_TYPE.CHOICE, label: "С вариантами ответа" },
+  { value: QUESTION_TYPE.OPEN, label: "Без вариантов ответа" },
+  { value: QUESTION_TYPE.VIDEO, label: "С видео" },
+  { value: QUESTION_TYPE.IMAGE, label: "С фотографией" },
+];
+
+const NEW_CATEGORY_VALUE = "__new__";
+
+const normalizeQuestionType = (rawType) => {
+  const normalized = (rawType ?? "").trim().toLowerCase();
+  const aliases = {
+    choice: QUESTION_TYPE.CHOICE,
+    options: QUESTION_TYPE.CHOICE,
+    variants: QUESTION_TYPE.CHOICE,
+    варианты: QUESTION_TYPE.CHOICE,
+    open: QUESTION_TYPE.OPEN,
+    text: QUESTION_TYPE.OPEN,
+    открытый: QUESTION_TYPE.OPEN,
+    video: QUESTION_TYPE.VIDEO,
+    vid: QUESTION_TYPE.VIDEO,
+    видео: QUESTION_TYPE.VIDEO,
+    image: QUESTION_TYPE.IMAGE,
+    photo: QUESTION_TYPE.IMAGE,
+    picture: QUESTION_TYPE.IMAGE,
+    фото: QUESTION_TYPE.IMAGE,
+    изображение: QUESTION_TYPE.IMAGE,
+  };
+
+  return aliases[normalized] ?? null;
+};
+
+const inferQuestionType = (question) => {
+  if (question.mediaUrl) {
+    const url = question.mediaUrl.toLowerCase();
+    if (/\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url)) {
+      return QUESTION_TYPE.VIDEO;
+    }
+    return QUESTION_TYPE.IMAGE;
+  }
+
+  if (question.options?.length) {
+    return QUESTION_TYPE.CHOICE;
+  }
+
+  return QUESTION_TYPE.OPEN;
+};
+
+const normalizeQuestion = (question) => {
+  const explicitType = normalizeQuestionType(question.type);
+  const type = explicitType ?? inferQuestionType(question);
+  const options =
+    type === QUESTION_TYPE.CHOICE && question.options?.length
+      ? [...question.options]
+      : null;
+  const mediaUrl =
+    type === QUESTION_TYPE.VIDEO || type === QUESTION_TYPE.IMAGE
+      ? question.mediaUrl?.trim() || null
+      : null;
+
+  return {
+    ...question,
+    type,
+    options,
+    mediaUrl,
+  };
+};
+
+const createEmptyQuestionDraft = () => ({
+  categoryTitle: "",
+  newCategoryTitle: "",
+  type: QUESTION_TYPE.CHOICE,
+  price: "200",
+  text: "",
+  optionsText: "",
+  answer: "",
+  mediaUrl: "",
+});
+
+const parseOptionsText = (optionsText) =>
+  optionsText
+    .split(/[\n|]/)
+    .map((option) => option.trim())
+    .filter(Boolean);
+
+const createQuestionId = (gameData) => {
+  const existingIds = new Set(
+    gameData.flatMap((category) => category.questions.map((question) => question.id))
+  );
+  let counter = 1;
+
+  while (existingIds.has(`manual-q-${counter}`)) {
+    counter += 1;
+  }
+
+  return `manual-q-${counter}`;
+};
+
+const buildQuestionFromDraft = (draft, gameData) => {
+  const categoryTitle =
+    draft.categoryTitle === NEW_CATEGORY_VALUE
+      ? draft.newCategoryTitle.trim()
+      : draft.categoryTitle.trim();
+  const questionText = draft.text.trim();
+  const answerText = draft.answer.trim();
+  const parsedPrice = parseScoreValue(draft.price, NaN);
+  const options = parseOptionsText(draft.optionsText);
+  const mediaUrl = draft.mediaUrl.trim();
+
+  if (!categoryTitle) {
+    throw new Error("Укажите тему для вопроса.");
+  }
+
+  if (!questionText) {
+    throw new Error("Введите текст вопроса.");
+  }
+
+  if (!answerText) {
+    throw new Error("Введите правильный ответ.");
+  }
+
+  if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+    throw new Error("Стоимость вопроса должна быть положительным числом.");
+  }
+
+  if (draft.type === QUESTION_TYPE.CHOICE && options.length === 0) {
+    throw new Error("Для вопроса с вариантами укажите хотя бы один вариант.");
+  }
+
+  if (
+    (draft.type === QUESTION_TYPE.VIDEO || draft.type === QUESTION_TYPE.IMAGE) &&
+    !mediaUrl
+  ) {
+    throw new Error(
+      draft.type === QUESTION_TYPE.VIDEO
+        ? "Добавьте ссылку или файл видео."
+        : "Добавьте ссылку или файл фотографии."
+    );
+  }
+
+  return normalizeQuestion({
+    id: createQuestionId(gameData),
+    type: draft.type,
+    price: parsedPrice,
+    text: questionText,
+    options: draft.type === QUESTION_TYPE.CHOICE ? options : null,
+    answer: answerText,
+    mediaUrl:
+      draft.type === QUESTION_TYPE.VIDEO || draft.type === QUESTION_TYPE.IMAGE
+        ? mediaUrl
+        : null,
+  });
+};
+
+const addQuestionToGameData = (gameData, categoryTitle, question) => {
+  const normalizedTitle = categoryTitle.trim();
+  const nextGameData = cloneGameData(gameData);
+  const existingCategory = nextGameData.find(
+    (category) => category.title.toLowerCase() === normalizedTitle.toLowerCase()
+  );
+
+  if (existingCategory) {
+    existingCategory.questions = [...existingCategory.questions, question].sort(
+      (left, right) => left.price - right.price
+    );
+    return nextGameData;
+  }
+
+  return [
+    ...nextGameData,
+    {
+      id: `cat-manual-${Date.now()}`,
+      title: normalizedTitle,
+      color: "#1e3a8a",
+      questions: [question],
+    },
+  ];
+};
+
+const getQuestionTypeLabel = (type) =>
+  QUESTION_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Вопрос";
 
 const DEFAULT_TEAM_COUNT = 2;
 const DEFAULT_TEAM_SCORE = 0;
+const DEFAULT_DEDUCT_ON_WRONG = true;
 
 const cloneGameData = (source) =>
   source.map((category) => ({
     ...category,
-    questions: category.questions.map((question) => ({
-      ...question,
-      options: question.options ? [...question.options] : null,
-    })),
+    questions: category.questions.map((question) => normalizeQuestion(question)),
   }));
 
 const createTeams = (count, initialScore) =>
@@ -386,6 +585,8 @@ const buildGameDataFromCsv = (csvText) => {
   const answerIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.answer);
   const optionsIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.options);
   const colorIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.color);
+  const typeIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.type);
+  const mediaIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.media);
 
   if (categoryIndex === -1 || priceIndex === -1 || questionIndex === -1 || answerIndex === -1) {
     throw new Error(
@@ -438,15 +639,21 @@ const buildGameDataFromCsv = (csvText) => {
       .split("|")
       .map((option) => option.trim())
       .filter(Boolean);
+    const rawType = typeIndex === -1 ? "" : (row[typeIndex] ?? "").trim();
+    const mediaUrl = mediaIndex === -1 ? "" : (row[mediaIndex] ?? "").trim();
 
     questionCounter += 1;
-    category.questions.push({
-      id: `imported-q-${questionCounter}`,
-      price: Math.trunc(parsedPrice),
-      text: questionText,
-      options: options.length > 0 ? options : null,
-      answer: answerText,
-    });
+    category.questions.push(
+      normalizeQuestion({
+        id: `imported-q-${questionCounter}`,
+        type: rawType || undefined,
+        price: Math.trunc(parsedPrice),
+        text: questionText,
+        options: options.length > 0 ? options : null,
+        answer: answerText,
+        mediaUrl: mediaUrl || null,
+      })
+    );
   }
 
   const importedData = Array.from(categories.values())
@@ -476,6 +683,15 @@ function App() {
   const [importStatus, setImportStatus] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState("team-1");
+  const [deductOnWrongAnswer, setDeductOnWrongAnswer] = useState(
+    DEFAULT_DEDUCT_ON_WRONG
+  );
+  const [teamNameDrafts, setTeamNameDrafts] = useState(() =>
+    createTeams(DEFAULT_TEAM_COUNT, DEFAULT_TEAM_SCORE).map((team) => team.name)
+  );
+  const [editingTeamId, setEditingTeamId] = useState(null);
+  const [questionDraft, setQuestionDraft] = useState(createEmptyQuestionDraft);
+  const [addQuestionStatus, setAddQuestionStatus] = useState(null);
 
   useEffect(() => {
     if (teams.length === 0) {
@@ -487,6 +703,36 @@ function App() {
       setSelectedTeamId(teams[0].id);
     }
   }, [teams, selectedTeamId]);
+
+  useEffect(() => {
+    if (!showSettings) {
+      return;
+    }
+
+    setTeamNameDrafts(teams.map((team) => team.name));
+    setTeamCountInput(teams.length);
+  }, [showSettings]);
+
+  useEffect(() => {
+    if (!showSettings) {
+      return;
+    }
+
+    const nextCount = Math.max(
+      1,
+      Math.min(12, parseScoreValue(teamCountInput, DEFAULT_TEAM_COUNT))
+    );
+
+    setTeamNameDrafts((prevDrafts) =>
+      Array.from({ length: nextCount }, (_, index) => {
+        const draftName = prevDrafts[index]?.trim();
+        if (draftName) {
+          return draftName;
+        }
+        return teams[index]?.name ?? `Команда ${index + 1}`;
+      })
+    );
+  }, [teamCountInput, showSettings]);
 
   const maxQuestionCount = Math.max(
     1,
@@ -547,10 +793,42 @@ function App() {
     setTeams((prevTeams) =>
       Array.from({ length: nextCount }, (_, index) => ({
         id: prevTeams[index]?.id ?? `team-${index + 1}`,
-        name: prevTeams[index]?.name ?? `Команда ${index + 1}`,
+        name:
+          teamNameDrafts[index]?.trim() ||
+          prevTeams[index]?.name ||
+          `Команда ${index + 1}`,
         score: prevTeams[index]?.score ?? nextStartScore,
       }))
     );
+  };
+
+  const handleTeamNameDraftChange = (index, value) => {
+    setTeamNameDrafts((prevDrafts) =>
+      prevDrafts.map((name, draftIndex) =>
+        draftIndex === index ? value : name
+      )
+    );
+  };
+
+  const handleTeamNameChange = (teamId, name) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return;
+    }
+
+    setTeams((prevTeams) =>
+      prevTeams.map((team) =>
+        team.id === teamId ? { ...team, name: trimmedName } : team
+      )
+    );
+  };
+
+  const finishTeamNameEditing = (teamId, name) => {
+    const trimmedName = name.trim();
+    if (trimmedName) {
+      handleTeamNameChange(teamId, trimmedName);
+    }
+    setEditingTeamId(null);
   };
 
   const handleResetTeamScores = () => {
@@ -580,7 +858,11 @@ function App() {
       return;
     }
 
-    const scoreDelta = isCorrect ? activeQuestion.price : -activeQuestion.price;
+    const scoreDelta = isCorrect
+      ? activeQuestion.price
+      : deductOnWrongAnswer
+        ? -activeQuestion.price
+        : 0;
 
     setTeams((prevTeams) =>
       prevTeams.map((team) =>
@@ -593,6 +875,53 @@ function App() {
     markQuestionAsUsed(activeQuestion.id);
     setActiveQuestion(null);
     setShowAnswer(false);
+  };
+
+  const handleQuestionDraftChange = (field, value) => {
+    setQuestionDraft((prevDraft) => ({
+      ...prevDraft,
+      [field]: value,
+    }));
+  };
+
+  const handleQuestionMediaFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setQuestionDraft((prevDraft) => ({
+      ...prevDraft,
+      mediaUrl: objectUrl,
+    }));
+    setAddQuestionStatus(null);
+    event.target.value = "";
+  };
+
+  const handleAddQuestion = (event) => {
+    event.preventDefault();
+
+    try {
+      const question = buildQuestionFromDraft(questionDraft, gameData);
+      const categoryTitle =
+        questionDraft.categoryTitle === NEW_CATEGORY_VALUE
+          ? questionDraft.newCategoryTitle.trim()
+          : questionDraft.categoryTitle.trim();
+
+      setGameData((prevGameData) =>
+        addQuestionToGameData(prevGameData, categoryTitle, question)
+      );
+      setQuestionDraft(createEmptyQuestionDraft());
+      setAddQuestionStatus({
+        type: "success",
+        text: `Вопрос добавлен в тему «${categoryTitle}».`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не удалось добавить вопрос.";
+      setAddQuestionStatus({ type: "error", text: message });
+    }
   };
 
   const handleCsvImport = async (event) => {
@@ -652,7 +981,7 @@ function App() {
         <div className="scoreboard-header">
           <h2 className="scoreboard-title">Команды</h2>
           <p className="scoreboard-hint">
-            Выберите активную команду. Ей начисляются или снимаются очки в карточке вопроса.
+            Выберите активную команду. Дважды нажмите на название, чтобы переименовать.
           </p>
         </div>
 
@@ -666,7 +995,40 @@ function App() {
               }`}
               onClick={() => setSelectedTeamId(team.id)}
             >
-              <span className="scoreboard-team-name">{team.name}</span>
+              {editingTeamId === team.id ? (
+                <input
+                  className="scoreboard-team-name-input"
+                  type="text"
+                  value={team.name}
+                  autoFocus
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) =>
+                    handleTeamNameChange(team.id, event.target.value)
+                  }
+                  onBlur={(event) =>
+                    finishTeamNameEditing(team.id, event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      finishTeamNameEditing(team.id, event.currentTarget.value);
+                    }
+                    if (event.key === "Escape") {
+                      setEditingTeamId(null);
+                    }
+                  }}
+                />
+              ) : (
+                <span
+                  className="scoreboard-team-name"
+                  onDoubleClick={(event) => {
+                    event.stopPropagation();
+                    setEditingTeamId(team.id);
+                  }}
+                >
+                  {team.name}
+                </span>
+              )}
               <span className="scoreboard-team-score">{team.score}</span>
             </button>
           ))}
@@ -708,13 +1070,26 @@ function App() {
                 return (
                   <button
                     key={question.id}
-                    className={`price-cell ${used ? "price-cell-used" : ""}`}
+                    className={`price-cell ${used ? "price-cell-used" : ""} ${
+                      question.type === QUESTION_TYPE.VIDEO
+                        ? "price-cell-video"
+                        : question.type === QUESTION_TYPE.IMAGE
+                          ? "price-cell-image"
+                          : ""
+                    }`}
                     onClick={() => handleQuestionClick(question, category)}
                     disabled={used}
                   >
                     <span className="price-cell-text">
                       {used ? "" : question.price}
                     </span>
+                    {!used &&
+                      (question.type === QUESTION_TYPE.VIDEO ||
+                        question.type === QUESTION_TYPE.IMAGE) && (
+                        <span className="price-cell-type">
+                          {question.type === QUESTION_TYPE.VIDEO ? "VID" : "IMG"}
+                        </span>
+                      )}
                   </button>
                 );
               })}
@@ -767,6 +1142,38 @@ function App() {
                     />
                   </label>
 
+                  <div className="team-names-list">
+                    <span className="field-label">Названия команд</span>
+                    {teamNameDrafts.map((name, index) => (
+                      <label className="field-group" key={`team-name-${index + 1}`}>
+                        <span className="field-label">Команда {index + 1}</span>
+                        <input
+                          className="field-input"
+                          type="text"
+                          value={name}
+                          onChange={(event) =>
+                            handleTeamNameDraftChange(index, event.target.value)
+                          }
+                          placeholder={`Команда ${index + 1}`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <label className="field-group field-group-checkbox">
+                    <input
+                      className="field-checkbox"
+                      type="checkbox"
+                      checked={deductOnWrongAnswer}
+                      onChange={(event) =>
+                        setDeductOnWrongAnswer(event.target.checked)
+                      }
+                    />
+                    <span className="field-label">
+                      Снимать баллы за неправильный ответ
+                    </span>
+                  </label>
+
                   <div className="control-actions">
                     <button type="submit" className="control-button">
                       Применить
@@ -783,12 +1190,210 @@ function App() {
               </article>
 
               <article className="control-card">
+                <h3 className="control-card-title">Добавить вопрос</h3>
+                <form className="question-add-form" onSubmit={handleAddQuestion}>
+                  <label className="field-group">
+                    <span className="field-label">Тема</span>
+                    <select
+                      className="field-input"
+                      value={questionDraft.categoryTitle}
+                      onChange={(event) =>
+                        handleQuestionDraftChange("categoryTitle", event.target.value)
+                      }
+                    >
+                      <option value="">Выберите тему</option>
+                      {gameData.map((category) => (
+                        <option key={category.id} value={category.title}>
+                          {category.title}
+                        </option>
+                      ))}
+                      <option value={NEW_CATEGORY_VALUE}>+ Новая тема</option>
+                    </select>
+                  </label>
+
+                  {questionDraft.categoryTitle === NEW_CATEGORY_VALUE && (
+                    <label className="field-group">
+                      <span className="field-label">Название новой темы</span>
+                      <input
+                        className="field-input"
+                        type="text"
+                        value={questionDraft.newCategoryTitle}
+                        onChange={(event) =>
+                          handleQuestionDraftChange(
+                            "newCategoryTitle",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Например: КИНО"
+                      />
+                    </label>
+                  )}
+
+                  <label className="field-group">
+                    <span className="field-label">Тип вопроса</span>
+                    <select
+                      className="field-input"
+                      value={questionDraft.type}
+                      onChange={(event) =>
+                        handleQuestionDraftChange("type", event.target.value)
+                      }
+                    >
+                      {QUESTION_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="field-group">
+                    <span className="field-label">Стоимость</span>
+                    <input
+                      className="field-input"
+                      type="number"
+                      min={1}
+                      value={questionDraft.price}
+                      onChange={(event) =>
+                        handleQuestionDraftChange("price", event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <label className="field-group">
+                    <span className="field-label">Текст вопроса</span>
+                    <textarea
+                      className="field-input field-textarea"
+                      rows={3}
+                      value={questionDraft.text}
+                      onChange={(event) =>
+                        handleQuestionDraftChange("text", event.target.value)
+                      }
+                      placeholder={
+                        questionDraft.type === QUESTION_TYPE.VIDEO
+                          ? "Например: Что было дальше?"
+                          : "Введите текст вопроса"
+                      }
+                    />
+                  </label>
+
+                  {questionDraft.type === QUESTION_TYPE.CHOICE && (
+                    <label className="field-group">
+                      <span className="field-label">Варианты ответа</span>
+                      <textarea
+                        className="field-input field-textarea"
+                        rows={4}
+                        value={questionDraft.optionsText}
+                        onChange={(event) =>
+                          handleQuestionDraftChange("optionsText", event.target.value)
+                        }
+                        placeholder="Каждый вариант с новой строки или через |"
+                      />
+                    </label>
+                  )}
+
+                  {(questionDraft.type === QUESTION_TYPE.VIDEO ||
+                    questionDraft.type === QUESTION_TYPE.IMAGE) && (
+                    <>
+                      <label className="field-group">
+                        <span className="field-label">
+                          {questionDraft.type === QUESTION_TYPE.VIDEO
+                            ? "Ссылка на видео"
+                            : "Ссылка на фото"}
+                        </span>
+                        <input
+                          className="field-input"
+                          type="url"
+                          value={questionDraft.mediaUrl}
+                          onChange={(event) =>
+                            handleQuestionDraftChange("mediaUrl", event.target.value)
+                          }
+                          placeholder="https://..."
+                        />
+                      </label>
+
+                      <label className="field-group">
+                        <span className="field-label">
+                          {questionDraft.type === QUESTION_TYPE.VIDEO
+                            ? "Или загрузите видеофайл"
+                            : "Или загрузите изображение"}
+                        </span>
+                        <input
+                          className="csv-file-input"
+                          type="file"
+                          accept={
+                            questionDraft.type === QUESTION_TYPE.VIDEO
+                              ? "video/*"
+                              : "image/*"
+                          }
+                          onChange={handleQuestionMediaFileChange}
+                        />
+                      </label>
+
+                      {questionDraft.mediaUrl && (
+                        <p className="question-media-preview">
+                          {questionDraft.type === QUESTION_TYPE.VIDEO ? (
+                            <video
+                              className="question-media-video"
+                              controls
+                              src={questionDraft.mediaUrl}
+                            />
+                          ) : (
+                            <img
+                              className="question-media-image"
+                              src={questionDraft.mediaUrl}
+                              alt="Предпросмотр"
+                            />
+                          )}
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  <label className="field-group">
+                    <span className="field-label">Правильный ответ</span>
+                    <textarea
+                      className="field-input field-textarea"
+                      rows={2}
+                      value={questionDraft.answer}
+                      onChange={(event) =>
+                        handleQuestionDraftChange("answer", event.target.value)
+                      }
+                      placeholder="Ответ для ведущего"
+                    />
+                  </label>
+
+                  <div className="control-actions">
+                    <button type="submit" className="control-button">
+                      Добавить вопрос
+                    </button>
+                  </div>
+
+                  {addQuestionStatus && (
+                    <p
+                      className={`import-status ${
+                        addQuestionStatus.type === "error"
+                          ? "import-status-error"
+                          : "import-status-success"
+                      }`}
+                    >
+                      {addQuestionStatus.text}
+                    </p>
+                  )}
+                </form>
+              </article>
+
+              <article className="control-card">
                 <h3 className="control-card-title">Импорт тем и вопросов</h3>
                 <p className="csv-note">
-                  CSV: <strong>category,price,question,options,answer[,color]</strong>.
+                  CSV:{" "}
+                  <strong>
+                    category,price,question,answer[,options,type,media,color]
+                  </strong>
+                  .
                   <br />
-                  В поле <strong>options</strong> перечисляйте варианты через символ{" "}
-                  <strong>|</strong>.
+                  <strong>type</strong>: choice, open, video, image.{" "}
+                  <strong>options</strong> — через <strong>|</strong>.{" "}
+                  <strong>media</strong> — ссылка на видео или фото.
                 </p>
                 <input
                   className="csv-file-input"
@@ -837,6 +1442,9 @@ function App() {
               <div className="question-card-category">
                 {activeQuestion.categoryTitle}
               </div>
+              <span className="question-card-type-badge">
+                {getQuestionTypeLabel(activeQuestion.type)}
+              </span>
               <div className="question-card-price">{activeQuestion.price}</div>
               <button className="question-card-close" onClick={handleCloseCard}>
                 ✕
@@ -844,10 +1452,26 @@ function App() {
             </div>
 
             <div className="question-card-body">
+              {activeQuestion.type === QUESTION_TYPE.VIDEO && activeQuestion.mediaUrl && (
+                <video
+                  className="question-media-video"
+                  controls
+                  src={activeQuestion.mediaUrl}
+                />
+              )}
+
+              {activeQuestion.type === QUESTION_TYPE.IMAGE && activeQuestion.mediaUrl && (
+                <img
+                  className="question-media-image"
+                  src={activeQuestion.mediaUrl}
+                  alt=""
+                />
+              )}
+
               <h2 className="question-card-title">ВОПРОС</h2>
               <p className="question-card-text">{activeQuestion.text}</p>
 
-              {activeQuestion.options && (
+              {activeQuestion.type === QUESTION_TYPE.CHOICE && activeQuestion.options && (
                 <ul className="question-options">
                   {activeQuestion.options.map((option) => (
                     <li key={option} className="question-option-item">
@@ -894,7 +1518,9 @@ function App() {
                   onClick={() => handleJudgeAnswer(false)}
                   disabled={!selectedTeam}
                 >
-                  НЕПРАВИЛЬНО -{activeQuestion.price}
+                  {deductOnWrongAnswer
+                    ? `НЕПРАВИЛЬНО -${activeQuestion.price}`
+                    : "НЕПРАВИЛЬНО"}
                 </button>
                 <button className="close-card-button" onClick={handleCloseCard}>
                   ЗАКРЫТЬ БЕЗ НАЧИСЛЕНИЯ
