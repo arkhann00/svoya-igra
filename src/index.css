@@ -365,6 +365,125 @@ body {
   border-color: #60a5fa;
 }
 
+.control-card-full {
+  grid-column: 1 / -1;
+}
+
+.control-button-danger {
+  background: #991b1b;
+  border-color: #fca5a5;
+}
+
+.control-button-danger:hover {
+  filter: brightness(1.08);
+}
+
+.content-manager-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #bfdbfe;
+}
+
+.content-manager-list {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.content-manager-category {
+  border: 1px solid #1d4ed8;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  padding: 10px;
+}
+
+.content-manager-category-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.content-manager-category-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #dbeafe;
+}
+
+.content-manager-count {
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+.content-manager-questions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.content-manager-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(29, 78, 216, 0.65);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(3, 15, 80, 0.65);
+}
+
+.content-manager-question-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.content-manager-question-price {
+  font-weight: 800;
+  color: #ffe800;
+  min-width: 36px;
+}
+
+.content-manager-question-type {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #93c5fd;
+}
+
+.content-manager-question-text {
+  font-size: 13px;
+  color: #e5e7eb;
+  line-height: 1.35;
+}
+
+.content-manager-delete-button {
+  flex-shrink: 0;
+  border: 1px solid #fca5a5;
+  border-radius: 999px;
+  background: #991b1b;
+  color: #fee2e2;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.content-manager-delete-button:hover {
+  filter: brightness(1.08);
+}
+
 .control-actions {
   display: flex;
   flex-wrap: wrap;

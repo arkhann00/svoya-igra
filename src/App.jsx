@@ -475,6 +475,32 @@ const addQuestionToGameData = (gameData, categoryTitle, question) => {
   ];
 };
 
+const removeQuestionFromGameData = (gameData, categoryId, questionId) =>
+  cloneGameData(gameData)
+    .map((category) =>
+      category.id === categoryId
+        ? {
+            ...category,
+            questions: category.questions.filter(
+              (question) => question.id !== questionId
+            ),
+          }
+        : category
+    )
+    .filter((category) => category.questions.length > 0);
+
+const removeCategoryFromGameData = (gameData, categoryId) =>
+  cloneGameData(gameData).filter((category) => category.id !== categoryId);
+
+const truncateText = (value, maxLength) => {
+  const normalized = value.trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 1)}…`;
+};
+
 const getQuestionTypeLabel = (type) =>
   QUESTION_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Вопрос";
 
@@ -692,6 +718,7 @@ function App() {
   const [editingTeamId, setEditingTeamId] = useState(null);
   const [questionDraft, setQuestionDraft] = useState(createEmptyQuestionDraft);
   const [addQuestionStatus, setAddQuestionStatus] = useState(null);
+  const [deleteContentStatus, setDeleteContentStatus] = useState(null);
 
   useEffect(() => {
     if (teams.length === 0) {
@@ -922,6 +949,85 @@ function App() {
         error instanceof Error ? error.message : "Не удалось добавить вопрос.";
       setAddQuestionStatus({ type: "error", text: message });
     }
+  };
+
+  const cleanupAfterContentRemoval = (removedQuestionIds) => {
+    setUsedQuestionIds((prevIds) =>
+      prevIds.filter((questionId) => !removedQuestionIds.includes(questionId))
+    );
+    setActiveQuestion((currentQuestion) =>
+      currentQuestion && removedQuestionIds.includes(currentQuestion.id)
+        ? null
+        : currentQuestion
+    );
+    setShowAnswer(false);
+  };
+
+  const handleDeleteQuestion = (categoryId, questionId) => {
+    const category = gameData.find((item) => item.id === categoryId);
+    const question = category?.questions.find((item) => item.id === questionId);
+
+    if (!category || !question) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `Удалить вопрос за ${question.price} в теме «${category.title}»?\n\n${truncateText(question.text, 120)}`
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setGameData((prevGameData) =>
+      removeQuestionFromGameData(prevGameData, categoryId, questionId)
+    );
+    cleanupAfterContentRemoval([questionId]);
+
+    if (questionDraft.categoryTitle === category.title) {
+      setQuestionDraft((prevDraft) => ({
+        ...prevDraft,
+        categoryTitle: "",
+      }));
+    }
+
+    setDeleteContentStatus({
+      type: "success",
+      text: `Вопрос удалён из темы «${category.title}».`,
+    });
+  };
+
+  const handleDeleteCategory = (categoryId) => {
+    const category = gameData.find((item) => item.id === categoryId);
+
+    if (!category) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `Удалить тему «${category.title}» и все ${category.questions.length} вопросов?`
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    const removedQuestionIds = category.questions.map((question) => question.id);
+
+    setGameData((prevGameData) => removeCategoryFromGameData(prevGameData, categoryId));
+    cleanupAfterContentRemoval(removedQuestionIds);
+
+    if (questionDraft.categoryTitle === category.title) {
+      setQuestionDraft((prevDraft) => ({
+        ...prevDraft,
+        categoryTitle: "",
+      }));
+    }
+
+    setDeleteContentStatus({
+      type: "success",
+      text: `Тема «${category.title}» удалена.`,
+    });
   };
 
   const handleCsvImport = async (event) => {
@@ -1380,6 +1486,79 @@ function App() {
                     </p>
                   )}
                 </form>
+              </article>
+
+              <article className="control-card control-card-full">
+                <h3 className="control-card-title">Удаление тем и вопросов</h3>
+                <p className="csv-note">
+                  Удаление необратимо. Сначала подтвердите действие в диалоге.
+                </p>
+
+                {gameData.length === 0 ? (
+                  <p className="content-manager-empty">Нет тем для удаления.</p>
+                ) : (
+                  <div className="content-manager-list">
+                    {gameData.map((category) => (
+                      <section key={category.id} className="content-manager-category">
+                        <div className="content-manager-category-header">
+                          <div className="content-manager-category-title">
+                            <strong>{category.title}</strong>
+                            <span className="content-manager-count">
+                              {category.questions.length} вопр.
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="control-button control-button-danger"
+                            onClick={() => handleDeleteCategory(category.id)}
+                          >
+                            Удалить тему
+                          </button>
+                        </div>
+
+                        <ul className="content-manager-questions">
+                          {category.questions.map((question) => (
+                            <li key={question.id} className="content-manager-question">
+                              <div className="content-manager-question-info">
+                                <span className="content-manager-question-price">
+                                  {question.price}
+                                </span>
+                                <span className="content-manager-question-type">
+                                  {getQuestionTypeLabel(question.type)}
+                                </span>
+                                <span className="content-manager-question-text">
+                                  {truncateText(question.text, 100)}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                className="content-manager-delete-button"
+                                onClick={() =>
+                                  handleDeleteQuestion(category.id, question.id)
+                                }
+                                aria-label="Удалить вопрос"
+                              >
+                                ✕
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                )}
+
+                {deleteContentStatus && (
+                  <p
+                    className={`import-status ${
+                      deleteContentStatus.type === "error"
+                        ? "import-status-error"
+                        : "import-status-success"
+                    }`}
+                  >
+                    {deleteContentStatus.text}
+                  </p>
+                )}
               </article>
 
               <article className="control-card">
