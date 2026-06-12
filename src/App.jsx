@@ -697,7 +697,17 @@ const buildGameDataFromCsv = (csvText) => {
 };
 
 function App() {
-  const [gameData, setGameData] = useState(() => cloneGameData(GAME_DATA));
+  const [gameData, setGameData] = useState(() => {
+    try {
+      const saved = localStorage.getItem("svoya-igra-game-data");
+      if (saved) {
+        return cloneGameData(JSON.parse(saved));
+      }
+    } catch {
+      // ignore
+    }
+    return cloneGameData(GAME_DATA);
+  });
   const [activeQuestion, setActiveQuestion] = useState(null);
   const [usedQuestionIds, setUsedQuestionIds] = useState([]);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -719,6 +729,14 @@ function App() {
   const [questionDraft, setQuestionDraft] = useState(createEmptyQuestionDraft);
   const [addQuestionStatus, setAddQuestionStatus] = useState(null);
   const [deleteContentStatus, setDeleteContentStatus] = useState(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("svoya-igra-game-data", JSON.stringify(gameData));
+    } catch {
+      // ignore
+    }
+  }, [gameData]);
 
   useEffect(() => {
     if (teams.length === 0) {
