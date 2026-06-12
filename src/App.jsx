@@ -383,7 +383,9 @@ const parseOptionsText = (optionsText) =>
 
 const createQuestionId = (gameData) => {
   const existingIds = new Set(
-    gameData.flatMap((category) => category.questions.map((question) => question.id))
+    gameData.flatMap((category) =>
+      category.questions.map((question) => question.id),
+    ),
   );
   let counter = 1;
 
@@ -426,13 +428,14 @@ const buildQuestionFromDraft = (draft, gameData) => {
   }
 
   if (
-    (draft.type === QUESTION_TYPE.VIDEO || draft.type === QUESTION_TYPE.IMAGE) &&
+    (draft.type === QUESTION_TYPE.VIDEO ||
+      draft.type === QUESTION_TYPE.IMAGE) &&
     !mediaUrl
   ) {
     throw new Error(
       draft.type === QUESTION_TYPE.VIDEO
         ? "Добавьте ссылку или файл видео."
-        : "Добавьте ссылку или файл фотографии."
+        : "Добавьте ссылку или файл фотографии.",
     );
   }
 
@@ -454,12 +457,13 @@ const addQuestionToGameData = (gameData, categoryTitle, question) => {
   const normalizedTitle = categoryTitle.trim();
   const nextGameData = cloneGameData(gameData);
   const existingCategory = nextGameData.find(
-    (category) => category.title.toLowerCase() === normalizedTitle.toLowerCase()
+    (category) =>
+      category.title.toLowerCase() === normalizedTitle.toLowerCase(),
   );
 
   if (existingCategory) {
     existingCategory.questions = [...existingCategory.questions, question].sort(
-      (left, right) => left.price - right.price
+      (left, right) => left.price - right.price,
     );
     return nextGameData;
   }
@@ -482,10 +486,10 @@ const removeQuestionFromGameData = (gameData, categoryId, questionId) =>
         ? {
             ...category,
             questions: category.questions.filter(
-              (question) => question.id !== questionId
+              (question) => question.id !== questionId,
             ),
           }
-        : category
+        : category,
     )
     .filter((category) => category.questions.length > 0);
 
@@ -502,7 +506,8 @@ const truncateText = (value, maxLength) => {
 };
 
 const getQuestionTypeLabel = (type) =>
-  QUESTION_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Вопрос";
+  QUESTION_TYPE_OPTIONS.find((option) => option.value === type)?.label ??
+  "Вопрос";
 
 const DEFAULT_TEAM_COUNT = 2;
 const DEFAULT_TEAM_SCORE = 0;
@@ -511,7 +516,9 @@ const DEFAULT_DEDUCT_ON_WRONG = true;
 const cloneGameData = (source) =>
   source.map((category) => ({
     ...category,
-    questions: category.questions.map((question) => normalizeQuestion(question)),
+    questions: category.questions.map((question) =>
+      normalizeQuestion(question),
+    ),
   }));
 
 const createTeams = (count, initialScore) =>
@@ -614,9 +621,14 @@ const buildGameDataFromCsv = (csvText) => {
   const typeIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.type);
   const mediaIndex = findColumnIndex(headers, CSV_HEADER_ALIASES.media);
 
-  if (categoryIndex === -1 || priceIndex === -1 || questionIndex === -1 || answerIndex === -1) {
+  if (
+    categoryIndex === -1 ||
+    priceIndex === -1 ||
+    questionIndex === -1 ||
+    answerIndex === -1
+  ) {
     throw new Error(
-      "Нужны столбцы: category, price, question, answer (options и color - опционально)."
+      "Нужны столбцы: category, price, question, answer (options и color - опционально).",
     );
   }
 
@@ -638,9 +650,14 @@ const buildGameDataFromCsv = (csvText) => {
     const parsedPrice = Number(rawPrice);
     const lineNumber = rowIndex + 1;
 
-    if (!categoryTitle || !questionText || !answerText || !Number.isFinite(parsedPrice)) {
+    if (
+      !categoryTitle ||
+      !questionText ||
+      !answerText ||
+      !Number.isFinite(parsedPrice)
+    ) {
       throw new Error(
-        `Ошибка в строке ${lineNumber}: проверьте поля category, price, question и answer.`
+        `Ошибка в строке ${lineNumber}: проверьте поля category, price, question и answer.`,
       );
     }
 
@@ -660,7 +677,7 @@ const buildGameDataFromCsv = (csvText) => {
       category.color = colorValue;
     }
 
-    const optionsRaw = optionsIndex === -1 ? "" : row[optionsIndex] ?? "";
+    const optionsRaw = optionsIndex === -1 ? "" : (row[optionsIndex] ?? "");
     const options = optionsRaw
       .split("|")
       .map((option) => option.trim())
@@ -678,14 +695,16 @@ const buildGameDataFromCsv = (csvText) => {
         options: options.length > 0 ? options : null,
         answer: answerText,
         mediaUrl: mediaUrl || null,
-      })
+      }),
     );
   }
 
   const importedData = Array.from(categories.values())
     .map((category) => ({
       ...category,
-      questions: category.questions.sort((left, right) => left.price - right.price),
+      questions: category.questions.sort(
+        (left, right) => left.price - right.price,
+      ),
     }))
     .filter((category) => category.questions.length > 0);
 
@@ -714,16 +733,18 @@ function App() {
   const [teamCountInput, setTeamCountInput] = useState(DEFAULT_TEAM_COUNT);
   const [teamScoreInput, setTeamScoreInput] = useState(DEFAULT_TEAM_SCORE);
   const [teams, setTeams] = useState(() =>
-    createTeams(DEFAULT_TEAM_COUNT, DEFAULT_TEAM_SCORE)
+    createTeams(DEFAULT_TEAM_COUNT, DEFAULT_TEAM_SCORE),
   );
   const [importStatus, setImportStatus] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState("team-1");
   const [deductOnWrongAnswer, setDeductOnWrongAnswer] = useState(
-    DEFAULT_DEDUCT_ON_WRONG
+    DEFAULT_DEDUCT_ON_WRONG,
   );
   const [teamNameDrafts, setTeamNameDrafts] = useState(() =>
-    createTeams(DEFAULT_TEAM_COUNT, DEFAULT_TEAM_SCORE).map((team) => team.name)
+    createTeams(DEFAULT_TEAM_COUNT, DEFAULT_TEAM_SCORE).map(
+      (team) => team.name,
+    ),
   );
   const [editingTeamId, setEditingTeamId] = useState(null);
   const [questionDraft, setQuestionDraft] = useState(createEmptyQuestionDraft);
@@ -765,7 +786,7 @@ function App() {
 
     const nextCount = Math.max(
       1,
-      Math.min(12, parseScoreValue(teamCountInput, DEFAULT_TEAM_COUNT))
+      Math.min(12, parseScoreValue(teamCountInput, DEFAULT_TEAM_COUNT)),
     );
 
     setTeamNameDrafts((prevDrafts) =>
@@ -775,17 +796,17 @@ function App() {
           return draftName;
         }
         return teams[index]?.name ?? `Команда ${index + 1}`;
-      })
+      }),
     );
   }, [teamCountInput, showSettings]);
 
   const maxQuestionCount = Math.max(
     1,
-    ...gameData.map((category) => category.questions.length)
+    ...gameData.map((category) => category.questions.length),
   );
   const totalQuestions = gameData.reduce(
     (total, category) => total + category.questions.length,
-    0
+    0,
   );
   const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? null;
 
@@ -806,7 +827,7 @@ function App() {
 
   const markQuestionAsUsed = (questionId) => {
     setUsedQuestionIds((prevIds) =>
-      prevIds.includes(questionId) ? prevIds : [...prevIds, questionId]
+      prevIds.includes(questionId) ? prevIds : [...prevIds, questionId],
     );
   };
 
@@ -829,7 +850,7 @@ function App() {
 
     const nextCount = Math.max(
       1,
-      Math.min(12, parseScoreValue(teamCountInput, DEFAULT_TEAM_COUNT))
+      Math.min(12, parseScoreValue(teamCountInput, DEFAULT_TEAM_COUNT)),
     );
     const nextStartScore = parseScoreValue(teamScoreInput, DEFAULT_TEAM_SCORE);
 
@@ -843,15 +864,15 @@ function App() {
           prevTeams[index]?.name ||
           `Команда ${index + 1}`,
         score: prevTeams[index]?.score ?? nextStartScore,
-      }))
+      })),
     );
   };
 
   const handleTeamNameDraftChange = (index, value) => {
     setTeamNameDrafts((prevDrafts) =>
       prevDrafts.map((name, draftIndex) =>
-        draftIndex === index ? value : name
-      )
+        draftIndex === index ? value : name,
+      ),
     );
   };
 
@@ -863,8 +884,8 @@ function App() {
 
     setTeams((prevTeams) =>
       prevTeams.map((team) =>
-        team.id === teamId ? { ...team, name: trimmedName } : team
-      )
+        team.id === teamId ? { ...team, name: trimmedName } : team,
+      ),
     );
   };
 
@@ -879,7 +900,7 @@ function App() {
   const handleResetTeamScores = () => {
     const resetValue = parseScoreValue(teamScoreInput, DEFAULT_TEAM_SCORE);
     setTeams((prevTeams) =>
-      prevTeams.map((team) => ({ ...team, score: resetValue }))
+      prevTeams.map((team) => ({ ...team, score: resetValue })),
     );
   };
 
@@ -913,8 +934,8 @@ function App() {
       prevTeams.map((team) =>
         team.id === selectedTeam.id
           ? { ...team, score: team.score + scoreDelta }
-          : team
-      )
+          : team,
+      ),
     );
 
     markQuestionAsUsed(activeQuestion.id);
@@ -955,7 +976,7 @@ function App() {
           : questionDraft.categoryTitle.trim();
 
       setGameData((prevGameData) =>
-        addQuestionToGameData(prevGameData, categoryTitle, question)
+        addQuestionToGameData(prevGameData, categoryTitle, question),
       );
       setQuestionDraft(createEmptyQuestionDraft());
       setAddQuestionStatus({
@@ -971,12 +992,12 @@ function App() {
 
   const cleanupAfterContentRemoval = (removedQuestionIds) => {
     setUsedQuestionIds((prevIds) =>
-      prevIds.filter((questionId) => !removedQuestionIds.includes(questionId))
+      prevIds.filter((questionId) => !removedQuestionIds.includes(questionId)),
     );
     setActiveQuestion((currentQuestion) =>
       currentQuestion && removedQuestionIds.includes(currentQuestion.id)
         ? null
-        : currentQuestion
+        : currentQuestion,
     );
     setShowAnswer(false);
   };
@@ -990,7 +1011,7 @@ function App() {
     }
 
     const shouldDelete = window.confirm(
-      `Удалить вопрос за ${question.price} в теме «${category.title}»?\n\n${truncateText(question.text, 120)}`
+      `Удалить вопрос за ${question.price} в теме «${category.title}»?\n\n${truncateText(question.text, 120)}`,
     );
 
     if (!shouldDelete) {
@@ -998,7 +1019,7 @@ function App() {
     }
 
     setGameData((prevGameData) =>
-      removeQuestionFromGameData(prevGameData, categoryId, questionId)
+      removeQuestionFromGameData(prevGameData, categoryId, questionId),
     );
     cleanupAfterContentRemoval([questionId]);
 
@@ -1023,16 +1044,20 @@ function App() {
     }
 
     const shouldDelete = window.confirm(
-      `Удалить тему «${category.title}» и все ${category.questions.length} вопросов?`
+      `Удалить тему «${category.title}» и все ${category.questions.length} вопросов?`,
     );
 
     if (!shouldDelete) {
       return;
     }
 
-    const removedQuestionIds = category.questions.map((question) => question.id);
+    const removedQuestionIds = category.questions.map(
+      (question) => question.id,
+    );
 
-    setGameData((prevGameData) => removeCategoryFromGameData(prevGameData, categoryId));
+    setGameData((prevGameData) =>
+      removeCategoryFromGameData(prevGameData, categoryId),
+    );
     cleanupAfterContentRemoval(removedQuestionIds);
 
     if (questionDraft.categoryTitle === category.title) {
@@ -1059,7 +1084,7 @@ function App() {
       const importedGameData = buildGameDataFromCsv(csvText);
       const importedQuestionsCount = importedGameData.reduce(
         (total, category) => total + category.questions.length,
-        0
+        0,
       );
 
       setGameData(importedGameData);
@@ -1086,7 +1111,6 @@ function App() {
       <header className="header">
         <div className="header-title-block">
           <h1 className="header-title">СВОЯ ИГРА</h1>
-          <p className="header-subtitle">Локальная игра с настройкой команд и CSV-импортом</p>
         </div>
         <div className="header-info">
           <span className="header-tag">Тем: {gameData.length}</span>
@@ -1104,9 +1128,10 @@ function App() {
       <section className="scoreboard">
         <div className="scoreboard-header">
           <h2 className="scoreboard-title">Команды</h2>
-          <p className="scoreboard-hint">
-            Выберите активную команду. Дважды нажмите на название, чтобы переименовать.
-          </p>
+          {/* <p className="scoreboard-hint">
+            Выберите активную команду. Дважды нажмите на название, чтобы
+            переименовать.
+          </p> */}
         </div>
 
         <div className="scoreboard-grid">
@@ -1162,7 +1187,9 @@ function App() {
       <main className="board-wrapper">
         <div className="board">
           {gameData.length === 0 && (
-            <p className="empty-board-text">Нет тем для показа. Импортируйте CSV.</p>
+            <p className="empty-board-text">
+              Нет тем для показа. Импортируйте CSV.
+            </p>
           )}
 
           {gameData.map((category) => (
@@ -1211,7 +1238,9 @@ function App() {
                       (question.type === QUESTION_TYPE.VIDEO ||
                         question.type === QUESTION_TYPE.IMAGE) && (
                         <span className="price-cell-type">
-                          {question.type === QUESTION_TYPE.VIDEO ? "VID" : "IMG"}
+                          {question.type === QUESTION_TYPE.VIDEO
+                            ? "VID"
+                            : "IMG"}
                         </span>
                       )}
                   </button>
@@ -1243,7 +1272,10 @@ function App() {
             <div className="settings-modal-body">
               <article className="control-card">
                 <h3 className="control-card-title">Команды и очки</h3>
-                <form className="team-settings-form" onSubmit={handleApplyTeamsSettings}>
+                <form
+                  className="team-settings-form"
+                  onSubmit={handleApplyTeamsSettings}
+                >
                   <label className="field-group">
                     <span className="field-label">Количество команд</span>
                     <input
@@ -1252,7 +1284,9 @@ function App() {
                       min={1}
                       max={12}
                       value={teamCountInput}
-                      onChange={(event) => setTeamCountInput(event.target.value)}
+                      onChange={(event) =>
+                        setTeamCountInput(event.target.value)
+                      }
                     />
                   </label>
 
@@ -1262,14 +1296,19 @@ function App() {
                       className="field-input"
                       type="number"
                       value={teamScoreInput}
-                      onChange={(event) => setTeamScoreInput(event.target.value)}
+                      onChange={(event) =>
+                        setTeamScoreInput(event.target.value)
+                      }
                     />
                   </label>
 
                   <div className="team-names-list">
                     <span className="field-label">Названия команд</span>
                     {teamNameDrafts.map((name, index) => (
-                      <label className="field-group" key={`team-name-${index + 1}`}>
+                      <label
+                        className="field-group"
+                        key={`team-name-${index + 1}`}
+                      >
                         <span className="field-label">Команда {index + 1}</span>
                         <input
                           className="field-input"
@@ -1315,14 +1354,20 @@ function App() {
 
               <article className="control-card">
                 <h3 className="control-card-title">Добавить вопрос</h3>
-                <form className="question-add-form" onSubmit={handleAddQuestion}>
+                <form
+                  className="question-add-form"
+                  onSubmit={handleAddQuestion}
+                >
                   <label className="field-group">
                     <span className="field-label">Тема</span>
                     <select
                       className="field-input"
                       value={questionDraft.categoryTitle}
                       onChange={(event) =>
-                        handleQuestionDraftChange("categoryTitle", event.target.value)
+                        handleQuestionDraftChange(
+                          "categoryTitle",
+                          event.target.value,
+                        )
                       }
                     >
                       <option value="">Выберите тему</option>
@@ -1345,7 +1390,7 @@ function App() {
                         onChange={(event) =>
                           handleQuestionDraftChange(
                             "newCategoryTitle",
-                            event.target.value
+                            event.target.value,
                           )
                         }
                         placeholder="Например: КИНО"
@@ -1408,7 +1453,10 @@ function App() {
                         rows={4}
                         value={questionDraft.optionsText}
                         onChange={(event) =>
-                          handleQuestionDraftChange("optionsText", event.target.value)
+                          handleQuestionDraftChange(
+                            "optionsText",
+                            event.target.value,
+                          )
                         }
                         placeholder="Каждый вариант с новой строки или через |"
                       />
@@ -1429,7 +1477,10 @@ function App() {
                           type="url"
                           value={questionDraft.mediaUrl}
                           onChange={(event) =>
-                            handleQuestionDraftChange("mediaUrl", event.target.value)
+                            handleQuestionDraftChange(
+                              "mediaUrl",
+                              event.target.value,
+                            )
                           }
                           placeholder="https://..."
                         />
@@ -1517,7 +1568,10 @@ function App() {
                 ) : (
                   <div className="content-manager-list">
                     {gameData.map((category) => (
-                      <section key={category.id} className="content-manager-category">
+                      <section
+                        key={category.id}
+                        className="content-manager-category"
+                      >
                         <div className="content-manager-category-header">
                           <div className="content-manager-category-title">
                             <strong>{category.title}</strong>
@@ -1536,7 +1590,10 @@ function App() {
 
                         <ul className="content-manager-questions">
                           {category.questions.map((question) => (
-                            <li key={question.id} className="content-manager-question">
+                            <li
+                              key={question.id}
+                              className="content-manager-question"
+                            >
                               <div className="content-manager-question-info">
                                 <span className="content-manager-question-price">
                                   {question.price}
@@ -1649,34 +1706,37 @@ function App() {
             </div>
 
             <div className="question-card-body">
-              {activeQuestion.type === QUESTION_TYPE.VIDEO && activeQuestion.mediaUrl && (
-                <video
-                  className="question-media-video"
-                  controls
-                  src={activeQuestion.mediaUrl}
-                />
-              )}
+              {activeQuestion.type === QUESTION_TYPE.VIDEO &&
+                activeQuestion.mediaUrl && (
+                  <video
+                    className="question-media-video"
+                    controls
+                    src={activeQuestion.mediaUrl}
+                  />
+                )}
 
-              {activeQuestion.type === QUESTION_TYPE.IMAGE && activeQuestion.mediaUrl && (
-                <img
-                  className="question-media-image"
-                  src={activeQuestion.mediaUrl}
-                  alt=""
-                />
-              )}
+              {activeQuestion.type === QUESTION_TYPE.IMAGE &&
+                activeQuestion.mediaUrl && (
+                  <img
+                    className="question-media-image"
+                    src={activeQuestion.mediaUrl}
+                    alt=""
+                  />
+                )}
 
               <h2 className="question-card-title">ВОПРОС</h2>
               <p className="question-card-text">{activeQuestion.text}</p>
 
-              {activeQuestion.type === QUESTION_TYPE.CHOICE && activeQuestion.options && (
-                <ul className="question-options">
-                  {activeQuestion.options.map((option) => (
-                    <li key={option} className="question-option-item">
-                      {option}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {activeQuestion.type === QUESTION_TYPE.CHOICE &&
+                activeQuestion.options && (
+                  <ul className="question-options">
+                    {activeQuestion.options.map((option) => (
+                      <li key={option} className="question-option-item">
+                        {option}
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
               <div className="answer-block">
                 {!showAnswer ? (
@@ -1698,7 +1758,9 @@ function App() {
             <div className="question-card-footer question-card-footer-judge">
               <div className="judge-team-label">
                 Активная команда:{" "}
-                <strong>{selectedTeam ? selectedTeam.name : "не выбрана"}</strong>
+                <strong>
+                  {selectedTeam ? selectedTeam.name : "не выбрана"}
+                </strong>
               </div>
               <div className="judge-actions">
                 <button
